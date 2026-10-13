@@ -1,0 +1,107 @@
+# GE XRD-3003TT: ViX500IM drives on /dev/ttyS5, translated from the spec config
+# (RS_CMVIX = /dev/ttyS5 9600, MOT000-MOT005). Same formulas as Bliss spec2yml:
+#   steps_per_unit = steps               velocity     = slew / |steps|
+#   sign           = spec sign (user = sign * dial + offset)
+#   acceleration   = velocity / (accel/1000)   (spec accel is a ramp time, 125 ms)
+#   backlash       = backl / |steps|     tolerance    = slop / |steps|
+#
+# Checked on the instrument (2026-10-06, examples/verify_addresses.py):
+#  * ADDRESS = spec channel + 1 (drive positions matched spec's dial values).
+#  * Software limits: DIAL limits from spec's `wm th tth chi phi y z` (2026-10-06).
+#    spec's "phi" (MOT003) is an x translation in mm: named x here.
+#    User offsets are not in the config: set them in Bliss (axis.position = spec user value).
+#  * spec's base rate (50/200 steps/s) has no ViX equivalent and is dropped.
+#  * th/tth (CMVIX_E in spec): the drives run a load-mounted encoder on X2
+#    (LOADENC on, EM = 2000 counts per "rev") with position maintenance armed
+#    (POSMAIN AR1 DB1): positions, velocity and acceleration are in encoder
+#    counts (2000 per degree) and the drive corrects its own position after
+#    each move, as under spec. Verified on the drives on 2026-10-06. Bliss
+#    reads the position from the drive (PT) and only compares it with the
+#    encoder (PA) before moves (encoder tolerance).
+
+- plugin: generic
+  class: ViX
+  package: vix_driver.bliss_vix
+  name: vix_xrd
+  serial:
+    url: /dev/ttyS5
+    baudrate: 9600
+  echo: true                  # RS232 daisy chain
+
+  axes:
+    - name: th                # MOT000 CMVIX_E:0/0  "Theta"
+      address: 1
+      steps_per_unit: 2000
+      unit: deg
+      velocity: 1.0           # 2000 steps/s
+      acceleration: 8.0
+      backlash: 0.05          # 100 steps
+      encoder: $th_enc
+      low_limit: -8          # dial, from spec wm (2026-10-06)
+      high_limit: 50
+
+    - name: tth               # MOT001 CMVIX_E:0/1  "Two Theta"
+      address: 2
+      steps_per_unit: 2000
+      unit: deg
+      velocity: 1.0
+      acceleration: 8.0
+      backlash: 0.05
+      encoder: $tth_enc
+      low_limit: -8          # dial, from spec wm (2026-10-06)
+      high_limit: 50
+
+    - name: chi               # MOT002 CMVIX:0/5  "Chi"
+      address: 6
+      steps_per_unit: 250000
+      unit: deg
+      velocity: 0.32          # 80000 steps/s
+      acceleration: 2.56
+      backlash: 0.0008        # 200 steps
+      low_limit: -12          # dial, from spec wm (2026-10-06)
+      high_limit: 12
+
+    - name: x                 # MOT003 CMVIX:0/3, spec mnemonic "phi": an x translation in mm (sign -1)
+      address: 4
+      steps_per_unit: 12500
+      unit: mm
+      sign: -1                # spec sign column: user = -dial + offset
+      velocity: 2.0           # mm/s (25000 steps/s)
+      acceleration: 4.0           # mm/s^2: 0.5 s ramp to 2 mm/s (spec: 16, 125 ms); reduced 2026-10-09
+      backlash: 0.004         # 50 steps
+      # dial, mm. Was -60..60 (spec wm, 2026-10-06); narrowed to -10..10 on
+      # 2026-10-09 after a -37.5 mm alignment correction drove the stage into
+      # the setup. Widen only after checking the travel is free.
+      low_limit: -10
+      high_limit: 10
+
+    - name: y                 # MOT004 CMVIX:0/2  "Y"
+      address: 3
+      steps_per_unit: 12500
+      unit: mm
+      velocity: 2.0
+      acceleration: 4.0           # mm/s^2: 0.5 s ramp to 2 mm/s (spec: 16, 125 ms); reduced 2026-10-09
+      backlash: 0.004
+      low_limit: -49.908          # dial, from spec wm (2026-10-06)
+      high_limit: 250.092
+
+    - name: z                 # MOT005 CMVIX:0/4  "Z" (sign -1)
+      address: 5
+      steps_per_unit: 1250000
+      unit: mm
+      sign: -1                # spec sign column: user = -dial + offset
+      velocity: 0.08          # 100000 steps/s
+      acceleration: 0.64
+      backlash: 0.0004        # 500 steps
+      low_limit: -43.96007          # dial, from spec wm (2026-10-06)
+      high_limit: 28.03993
+
+  encoders:
+    - name: th_enc            # X2 encoder of drive 1, read as PA
+      address: 1
+      steps_per_unit: 2000    # PA counts per degree (see header)
+      tolerance: 0.005        # Bliss refuses to move if encoder and drive differ more (10 counts)
+    - name: tth_enc
+      address: 2
+      steps_per_unit: 2000
+      tolerance: 0.005

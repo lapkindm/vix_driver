@@ -1,0 +1,115 @@
+# Test fixture for tests/bliss_e2e_encoder.py: the XRD-3003TT axes with Bliss-side
+# encoder correction (read_position: encoder). NOT the instrument config any more:
+# the real th/tth drives use LOADENC + POSMAIN (see bliss_config/xrd3003tt_vix.yml).
+#
+# GE XRD-3003TT: ViX500IM drives on /dev/ttyS5, translated from the spec config
+# (RS_CMVIX = /dev/ttyS5 9600, MOT000-MOT005). Same formulas as Bliss spec2yml:
+#   steps_per_unit = steps               velocity     = slew / |steps|
+#   sign           = spec sign (user = sign * dial + offset)
+#   acceleration   = velocity / (accel/1000)   (spec accel is a ramp time, 125 ms)
+#   backlash       = backl / |steps|     tolerance    = slop / |steps|
+#
+# To check before first use:
+#  * ADDRESS = spec channel + 1 is an assumption (address 0 is the ViX
+#    broadcast address, so channel 0 cannot be address 0). Verify it, see README.
+#  * Software limits: DIAL limits from spec's `wm th tth chi phi y z` (2026-10-06).
+#    spec's "phi" (MOT003) is an x translation in mm: named x here.
+#    User offsets are not in the config: set them in Bliss (axis.position = spec user value).
+#  * spec's base rate (50/200 steps/s) has no ViX equivalent and is dropped.
+#  * th/tth (CMVIX_E in spec) have encoders on the drives' X2 inputs. Their
+#    position is read from the encoder (PA) and each move is corrected by the
+#    encoder/commanded difference. Encoder steps_per_unit = 2000 assumes the
+#    drive's motor resolution equals the encoder counts/rev (motor-mounted
+#    encoder, as the ViX manual recommends), so PA counts like motor steps.
+#    examples/verify_addresses.py prints PA next to PT to confirm.
+#    Drive-side position maintenance (POSMAIN) must be off for these two
+#    axes; the controller refuses to start otherwise.
+
+- plugin: generic
+  class: ViX
+  package: vix_driver.bliss_vix
+  name: vix_xrd
+  serial:
+    url: /dev/ttyS5
+    baudrate: 9600
+  echo: true                  # RS232 daisy chain
+
+  axes:
+    - name: th                # MOT000 CMVIX_E:0/0  "Theta"
+      address: 1
+      steps_per_unit: 2000
+      unit: deg
+      velocity: 1.0           # 2000 steps/s
+      acceleration: 8.0
+      backlash: 0.05          # 100 steps
+      encoder: $th_enc
+      read_position: encoder
+      max_encoder_error: 0.005  # MOTPAR:slop = 10 steps: refuse to move beyond this
+                                # encoder/commanded gap (lost steps)
+      low_limit: -8          # dial, from spec wm (2026-10-06)
+      high_limit: 50
+
+    - name: tth               # MOT001 CMVIX_E:0/1  "Two Theta"
+      address: 2
+      steps_per_unit: 2000
+      unit: deg
+      velocity: 1.0
+      acceleration: 8.0
+      backlash: 0.05
+      encoder: $tth_enc
+      read_position: encoder
+      max_encoder_error: 0.005  # no slop in spec config; same 10 steps as th (TODO confirm)
+      low_limit: -8          # dial, from spec wm (2026-10-06)
+      high_limit: 50
+
+    - name: chi               # MOT002 CMVIX:0/5  "Chi"
+      address: 6
+      steps_per_unit: 250000
+      unit: deg
+      velocity: 0.32          # 80000 steps/s
+      acceleration: 2.56
+      backlash: 0.0008        # 200 steps
+      low_limit: -12          # dial, from spec wm (2026-10-06)
+      high_limit: 12
+
+    - name: x                 # MOT003 CMVIX:0/3, spec mnemonic "phi": an x translation in mm (sign -1)
+      address: 4
+      steps_per_unit: 12500
+      unit: mm
+      sign: -1                # spec sign column: user = -dial + offset
+      velocity: 2.0           # mm/s (25000 steps/s)
+      acceleration: 16.0
+      backlash: 0.004         # 50 steps
+      low_limit: -60          # dial, mm, from spec wm (2026-10-06)
+      high_limit: 60
+
+    - name: y                 # MOT004 CMVIX:0/2  "Y"
+      address: 3
+      steps_per_unit: 12500
+      unit: mm
+      velocity: 2.0
+      acceleration: 16.0
+      backlash: 0.004
+      low_limit: -49.908          # dial, from spec wm (2026-10-06)
+      high_limit: 250.092
+
+    - name: z                 # MOT005 CMVIX:0/4  "Z" (sign -1)
+      address: 5
+      steps_per_unit: 1250000
+      unit: mm
+      sign: -1                # spec sign column: user = -dial + offset
+      velocity: 0.08          # 100000 steps/s
+      acceleration: 0.64
+      backlash: 0.0004        # 500 steps
+      low_limit: -43.96007          # dial, from spec wm (2026-10-06)
+      high_limit: 28.03993
+
+  encoders:
+    - name: th_enc            # X2 encoder of drive 1, read as PA
+      address: 1
+      steps_per_unit: 2000    # PA counts per degree (see header)
+      tolerance: 0.005        # end-of-move check, degrees
+    - name: tth_enc
+      address: 2
+      steps_per_unit: 2000
+      tolerance: 0.005

@@ -1,0 +1,6 @@
+__pycache__/
+*.egg-info/
+.venv/
+docs/vix.txt
+# manufacturer manuals: copyrighted, kept on the instrument PC only
+docs/

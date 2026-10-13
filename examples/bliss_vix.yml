@@ -1,0 +1,45 @@
+# Bliss configuration template for ViX IM drives on one serial line.
+# Put this in your Beacon config directory; values marked TODO must come
+# from the existing spec setup (spec config file / ViX motor settings).
+
+- plugin: generic
+  class: ViX
+  package: vix_driver.bliss_vix     # this package must be importable by the session
+  name: vix_ctrl
+  serial:
+    url: /dev/ttyS0                 # TODO; also ser2net://host:port/dev, rfc2217://host:port
+    baudrate: 9600                  # must match the drives' BR (9600 or 19200)
+  echo: true                        # RS232 daisy chain: true; RS485 multidrop: false
+  # timeout: 1.0                    # seconds to wait for a reply
+  # settle: 0.03                    # seconds to listen for *E after a command
+
+  axes:
+    - name: tth                     # TODO: axis names used in spec
+      address: 1                    # TODO: drive address (1..255)
+      steps_per_rev: 4000           # TODO: motor resolution set with MOTOR (checked at start-up)
+      steps_per_unit: 4000          # TODO: motor steps per degree (sign inverts direction)
+      velocity: 1.0                 # TODO: deg/s
+      acceleration: 10.0            # TODO: deg/s^2
+      low_limit: -10                # TODO: software limits, deg (dial)
+      high_limit: 160
+      power_on_init: false          # energise the drive when the axis initialises
+      # Homing (axis.home(+1/-1)); omit home_velocity to use the HOME
+      # settings already stored in the drive (e.g. set up from spec/EASI-V).
+      # home_velocity: 0.5          # deg/s
+      # home_acceleration: 5        # deg/s^2
+      # home_edge: "-"              # "+" or "-" (default: search direction)
+      # home_switch_nc: false       # home switch normally closed
+      # home_mode: 0                # 0 window, 1 edge, 3 switch+Z, 4 Z only
+
+    - name: th
+      address: 2
+      steps_per_rev: 4000
+      steps_per_unit: 4000
+      velocity: 1.0
+      acceleration: 10.0
+
+  # Optional: read-only encoders on the drives' X2 inputs (PA)
+  # encoders:
+  #   - name: tth_enc
+  #     address: 1
+  #     steps_per_unit: 4000

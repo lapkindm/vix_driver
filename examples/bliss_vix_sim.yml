@@ -1,0 +1,27 @@
+# Beacon config used by tests/bliss_e2e.py with tests/pty_sim.py.
+# Replace <LINK> with the link path given to pty_sim.py.
+- plugin: generic
+  class: ViX
+  package: vix_driver.bliss_vix
+  name: vix_ctrl
+  serial:
+    url: <LINK>
+    baudrate: 9600
+  axes:
+    - name: tth
+      address: 1
+      steps_per_rev: 4000
+      steps_per_unit: 100
+      velocity: 10
+      acceleration: 50
+      power_on_init: true
+      low_limit: -10
+      high_limit: 120
+      home_velocity: 2
+      home_acceleration: 20
+    - name: th
+      address: 2
+      steps_per_rev: 4000
+      steps_per_unit: 100
+      velocity: 10
+      acceleration: 50
