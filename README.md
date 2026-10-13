@@ -4,7 +4,9 @@ Python driver for **Parker ViX250IM / ViX500IM** microstepper indexer drives
 over RS232. It uses the drives' EASI-V ASCII command set.
 
 Written from the *ViX250IM & ViX500IM Microstepper RS232 Indexer Drive User
-Guide* (Parker 1600.324.01b, Feb 2004, firmware 2.0 onwards).
+Guide* (Parker 1600.324.01b, Feb 2004, firmware 2.0 onwards). The guide is not
+included here; Parker publishes it at
+<https://www.parkermotion.com/manuals/Digiplan/ViX-IM_UG_2-04.pdf>.
 
 ## Install
 
@@ -182,6 +184,19 @@ Install this package into the Bliss environment (`pip install -e .`).
 - **Power cycles.** A power-cycled or faulted drive comes back de-energised
   (state OFF or FAULT) with its position reset. Run `axis.on()` and then
   `axis.sync_hard()`; Bliss refuses to move while dial and drive disagree.
+- **Status.** `state()` reads the status word byte by byte: ST3 (moving,
+  stall) and ST2 (energised, limits), ~90 ms each on a real drive instead of
+  ~250 ms for the whole word, and ST1 only while homing. ST bit 17 (POSMAIN
+  correction) stays set until the next move command, so it is not taken as
+  "moving".
+- **Caching.** Every query costs 70–90 ms on a real daisy chain, and Bliss
+  reads position and state several times around each move. The controller
+  reuses a stopped axis's position for up to 2 s (`POSITION_TTL`) and its
+  state for 0.5 s (`STATE_TTL`), as long as nothing is sent to that drive; any
+  command clears both, and the first read after a move goes to the drive.
+  During a move the position is read again every 0.5 s (`MOVING_REFRESH`), so
+  `umv` shows it on the way while short scan steps cost no extra query. A
+  position changed by another program (e.g. spec) is noticed at most 2 s later.
 - **Limits.** ST bits 13/14 ("limit seen during last move") are reported as
   LIMNEG/LIMPOS, so a move stopped by a limit raises `AxisOnLimitError`.
   `hw_limit(±1)` and `home(±1)` take the direction in motor (hardware) sense,
@@ -222,12 +237,13 @@ instrument (2026-10-06, `examples/verify_addresses.py`):
 - **Names and units.** spec's `phi` (MOT003) is an x translation in mm and is
   called `x` in Bliss. th, tth and chi are in degrees; x, y and z in mm.
 - **Signs and limits.** `x` and `z` use `sign: -1`, spec's user/dial sign.
-  The limits are spec's dial limits.
+  The limits are spec's dial limits, except `x`: ±10 mm since 2026-10-09,
+  after a wrong alignment correction drove the stage into the setup.
 - **th/tth** run LOADENC with EM = 2000 and POSMAIN armed (`AR1 DB1`).
   Positions are in encoder counts, 2000 per degree, and the drive corrects
   itself.
-- **Speeds.** Every drive's V and AA equal spec's slew and ramp, so the
-  configured velocities and accelerations match spec.
+- **Speeds.** Velocities and accelerations are spec's slew and ramp, except
+  that `x` and `y` accelerate at 4 mm/s² (0.5 s to 2 mm/s; spec: 16 mm/s²).
 - **Serial port.** For a local device (`url: /dev/...`) the controller opens
   the port with pyserial. Through bliss.comm's Serial, the echo of the longer
   commands such as `1W(CQ,0)` lost its first bytes on the real drives, which
@@ -238,10 +254,6 @@ instrument (2026-10-06, `examples/verify_addresses.py`):
 
 User offsets are not in the config. After the first start, set each axis to
 spec's user value (`axis.position = ...`).
-
-The driver follows the Parker *ViX IM user guide* (version 2.04), which is not
-included here; Parker publishes it at
-<https://www.parkermotion.com/manuals/Digiplan/ViX-IM_UG_2-04.pdf>.
 
 ## Tests
 
